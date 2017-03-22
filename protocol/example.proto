@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package example_service;
+
+service ExampleService {
+    rpc Compute (ComputeRequest) returns (ComputeResponse) {}
+}
+
+message ComputeRequest {
+    string question = 1;
+}
+message ComputeResponse {
+    string answer = 1;
+}
