@@ -12,26 +12,28 @@ import numpy as np
 import protocol.example_pb2
 import protocol.example_pb2_grpc
 
-
+main_session = None
 sessions = None
 input_ph = None
 task = None
 
 
 def get_graph():
+    global main_session
     input_ph = tf.placeholder(tf.float64, shape=(1024, 1024))
     x = input_ph
     for i in range(1000):
         x = x * x
     print('get_graph', x.graph)
     sess = tf.Session(
-        # config=tf.ConfigProto(allow_soft_placement=True,
+        config=tf.ConfigProto(allow_soft_placement=True,
         #                       inter_op_parallelism_threads=1,
-        #                       intra_op_parallelism_threads=1
-        #                       ),
+                              intra_op_parallelism_threads=1
+                              ),
         graph=x.graph
     )
     sess.run(tf.global_variables_initializer())
+    main_session = sess
     return input_ph, x
 
 
@@ -50,9 +52,11 @@ def new_session():
 class ExampleServer(protocol.example_pb2_grpc.ExampleServiceServicer):
 
     def Compute(self, request, context):
+        global main_session
         question = request.question
         print('accept {}'.format(question))
-        sess = sessions[current_thread().name]
+        # sess = sessions[current_thread().name]
+        sess = main_session
         x = np.random.rand(1024, 1024)
         ret = sess.run(task, feed_dict={input_ph: x})
         print("current_thread: {}, question: {}".format(current_thread().name, question))
@@ -67,7 +71,7 @@ def serve():
     input_ph, task = get_graph()
     print('Finish Build graph')
 
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=8))
     protocol.example_pb2_grpc.add_ExampleServiceServicer_to_server(ExampleServer(), server)
     server.add_insecure_port('[::]:50055')
     server.start()
